@@ -1,0 +1,11 @@
+.venv/
+
+downloaded_files/
+
+__pycache__/
+
+~$test.xlsx
+
+test.xlsx
+
+GOGS list of projects.xlsx
