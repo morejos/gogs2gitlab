@@ -12,11 +12,11 @@ class main:
     driver = hc.initializeChromeDriver(GITLAB_URL)
     counter = 2 # helps us keep track of what excel row we should be on
 
-    # Store the read columns into a list
+    # # Store the read columns into a list
     projectNamesList = pd.read_excel(MYXSX, header=None, skiprows=1, usecols="A").values.tolist()
     gogsLinksList = pd.read_excel(MYXSX, header=None, skiprows=1, usecols="B").values.tolist()
     
-    # # Login to GitLab
+    # Login to GitLab
     hc.loginGitLab(driver)
 
     # Enter the name of the project in the search bar to verify it doesn't already exists, if it does, skip to next project
@@ -51,7 +51,7 @@ class main:
             else:
                 hc.createProject(driver, counter, gogsLink, projName)
         counter += 1
-
+        
     # Now update the configurations for all projects on Jenkins
     hc.modifyJenkinsProject(projectNamesList)
 

@@ -13,7 +13,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 
 class HelperClass:
-
     def createProject(self, driver, counter, gogsLink, projName):
         # "New Project"
         driver.find_element(By.LINK_TEXT, "New project").click()
@@ -47,7 +46,7 @@ class HelperClass:
 
         # Verify successfull creation of project, otherwise if we missed this project already being created, skip to next project
         if ((SUCCESS_MESSAGE in driver.page_source) == True):
-            print(">>>>> (1/3) Successfully imported project", projName)
+            print(">>>>> (1/2) Successfully imported project", projName)
         else:
             print(">>>>> Failed to create project", projName, "moving onto next project.\n")
             driver.find_element(By.LINK_TEXT, "QBITAutomation").click()
@@ -77,12 +76,11 @@ class HelperClass:
         if (doesItExists == False):
             # Write the gitlab link to the excel sheet
             if (sheet.cell(row=counter, column=PROJECT_TITLE).value == str(projName)[2:-2]): # Verify here the correct row is selected
-                print(">>>>> (2/3) Writing GitLab link for project", projName, "to excel sheet.")
                 sheet.cell(row=counter, column=GITLAB_LINK).value = pyperclip.paste()
                 wb.save(MYXSX)
-                print(">>>>> (3/3) Successfully updated excel sheet for project.", projName, "\n")
+                print(">>>>> (2/2) Successfully updated excel sheet for project", projName, "\n")
             else:
-                print(">>>>> Unable to add GitLab link", projName, "to excel sheet.\n")
+                print(">>>>> Unable to add GitLab link", projName, "to excel sheet\n")
         else:
             sheet.cell(row=counter, column=GITLAB_LINK).value = "THIS PROJECT ALREADY EXISTS ON GITLAB."
             wb.save(MYXSX)
@@ -97,7 +95,7 @@ class HelperClass:
             wb.save(MYXSX)
             print(">>>>> Successfully updated excel sheet for project.", projName, "\n")
         else:
-            print(">>>>> Unable to update project info message for:", projName, "to excel sheet.\n")
+            print(">>>>> Unable to update project info message for:", projName, "to excel sheet\n")
 
     def loginGitLab(self, driver):
         # "Sign in"
@@ -113,18 +111,25 @@ class HelperClass:
         driver.find_element(By.NAME, "commit").click()
         time.sleep(1)
 
-    #TODO: Fix issue of jenkins not being able to log in
     def loginJenkins(self, driver):
         print(">>>>> Completed importing projects to GitLab, now updating Jenkins configurations...")
+        
+        tf = True
+        while tf:
+            try:
+                # Enter credentials
+                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_username"))).send_keys(USER)
+                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_password"))).send_keys(PSWD)
+                time.sleep(0.5)
 
-        # Enter credentials
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_username"))).send_keys(USER)
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_password"))).send_keys(PSWD)
-        time.sleep(0.5)
-
-        # "Sign in"
-        driver.find_element(By.NAME, "Submit").click()
-        time.sleep(5)
+                # "Sign in"
+                signInBtn = driver.find_element(By.NAME, "Submit")
+                signInBtn.click()
+                time.sleep(5)
+                tf = False
+            except Exception:
+                driver.refresh()
+                continue
 
     def initializeChromeDriver(self, URL):
         driver = Driver(uc=True)
@@ -173,6 +178,7 @@ class HelperClass:
             
             # If project exists, click on it so we can update the configuration
             if (projectExists == True):
+                print(">>>>> (1/3) Successfully found Jenkins project:", projName)
                 element = driver.find_element(By.XPATH, "//a[@href='job/"+projName+"/']")
                 driver.execute_script("arguments[0].click();", element)
                 time.sleep(1.5)
@@ -183,7 +189,7 @@ class HelperClass:
 
                 # Verify we can see "Pipeline master" to make sure we are on right page & grab average build time for later use
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[@id='pipeline-box']")))
-                avgBuildTime = (HelperClass.getBuildTime(self, driver) + 15)
+                avgBuildTime = (HelperClass.getBuildTime(self, driver) + 20)
 
                 # Nav back one page
                 driver.back()
@@ -212,7 +218,7 @@ class HelperClass:
                     element2.send_keys(gitLink)
                     time.sleep(1)
                 except:
-                    print(">>>>> No secondary Git entry text box for",projName,", proceeding with remaining steps.")
+                    print(">>>>> Proceeding w/ remaining steps as no secondary Git entry text box for:", projName)
 
                 # "Save" & wait depending on which page of Jenkins we go to
                 driver.find_element(By.XPATH, "//button[@type='submit']").click()
@@ -229,12 +235,12 @@ class HelperClass:
                 actionChains.double_click(driver.find_element(By.LINK_TEXT, 'master')).perform()
 
                 # Build updated project w/ updated Jenkins configs & verify
-                HelperClass.buildAndVerify(self, driver, projectNamesList, avgBuildTime)
-                print(">>>>> (1/1) Successfully updated & built project:", projName)
+                HelperClass.buildAndVerify(self, driver, avgBuildTime, projName)
+                print(">>>>> (3/3) Completed Jenkins configuration + build for:", projName)
                 counter +=1
             else:
                 HelperClass.writeInfoToExcel(self, counter, projName, "DNE")
-                print(">>>>> Updated on excel sheet that project:", projName, "could not be found on Jenkins.")
+                print(">>>>> Jenkins project:", projName, "could not be found, excel sheet has been updated.")
                 counter += 1
         # End
         driver.close()
@@ -260,7 +266,7 @@ class HelperClass:
             runTimeInt = int(runTimeTxt[46:48])
         return runTimeInt
 
-    def buildAndVerify(self, driver, projectNamesList, avgBuildTime):
+    def buildAndVerify(self, driver, avgBuildTime, projName):
         # Grab the number of current builds
         builds = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
 
@@ -268,12 +274,11 @@ class HelperClass:
         driver.find_element(By.XPATH, "//div[@id='tasks']/div[3]").click()
         time.sleep(avgBuildTime)
 
-        # Check the number of builds again verifying a new build was added TODO: Find a way to make this wait until new project build gets added to list
+        # Check the number of builds again verifying a new build was added
         builds2 = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
 
         # Compare both lists verifying new lists is +1 on old list
         if (len(builds) < len(builds2)):
-            
             # Refresh the screen so we may see new statistics
             driver.refresh()
 
@@ -286,6 +291,9 @@ class HelperClass:
             lastSuccessfulBuild = driver.find_element(By.XPATH, "//a[@href='lastSuccessfulBuild/']").text
 
             # Verify we see latest build ID as "Last Sucessful Build"
-            print(latestBuildID in lastSuccessfulBuild)
+            if (latestBuildID in lastSuccessfulBuild):
+                print(">>>>> (2/3) Successfully validated build for:", projName)
+            else:
+                print(">>>>> (2/3) Failed to validate build status for project:", projName, ", please check afterwards")
         else:
             print(">>>>> Failed to check for updated Jenkins build for current project.")
