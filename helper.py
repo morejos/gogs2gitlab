@@ -11,6 +11,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.common.exceptions import NoSuchElementException
 
 class HelperClass:
     def createProject(self, driver, counter, gogsLink, projName):
@@ -48,7 +49,7 @@ class HelperClass:
         if ((SUCCESS_MESSAGE in driver.page_source) == True):
             print(">>>>> (1/2) Successfully imported project", projName)
         else:
-            print(">>>>> Failed to create project", projName, "moving onto next project.\n")
+            print("[ERROR] Failed to create project", projName, "moving onto next project.\n")
             driver.find_element(By.LINK_TEXT, "QBITAutomation").click()
             time.sleep(1.5)
             counter += 1
@@ -80,7 +81,7 @@ class HelperClass:
                 wb.save(MYXSX)
                 print(">>>>> (2/2) Successfully updated excel sheet for project", projName, "\n")
             else:
-                print(">>>>> Unable to add GitLab link", projName, "to excel sheet\n")
+                print("[ERROR] Unable to add GitLab link", projName, "to excel sheet\n")
         else:
             sheet.cell(row=counter, column=GITLAB_LINK).value = "THIS PROJECT ALREADY EXISTS ON GITLAB."
             wb.save(MYXSX)
@@ -90,12 +91,18 @@ class HelperClass:
         sheet = wb['Sheet1']
         
         if (reason == "DNE"):
-            print(">>>>> Writing GitLab link for project", projName, "to excel sheet.")
+            print("[ERROR]", projName, "does not exist, updating excel sheet.")
             sheet.cell(row=counter, column=INFO_COLUMN).value = "Project not found on Jenkins."
             wb.save(MYXSX)
-            print(">>>>> Successfully updated excel sheet for project.", projName, "\n")
+            print(">>>>> Successfully updated excel sheet for missing project:", projName, "\n")
+        elif (reason == "FAIL"):
+            sheet.cell(row=counter, column=SECOND_INFO_COLUMN).value = "Failed to configure GitLab and/or Jenkins, please review."
+            wb.save(MYXSX)
+        elif (reason == "DONE"):
+            sheet.cell(row=counter, column=SECOND_INFO_COLUMN).value = "Successfully configured GitLab + Jenkins."
+            wb.save(MYXSX)
         else:
-            print(">>>>> Unable to update project info message for:", projName, "to excel sheet\n")
+            print("[ERROR] Unable to update project info message for:", projName, "to excel sheet\n")
 
     def loginGitLab(self, driver):
         # "Sign in"
@@ -112,7 +119,7 @@ class HelperClass:
         time.sleep(1)
 
     def loginJenkins(self, driver):
-        print(">>>>> Completed importing projects to GitLab, now updating Jenkins configurations...")
+        print(">>>>> Completed importing projects to GitLab, now updating Jenkins configurations...\n")
         
         tf = True
         while tf:
@@ -186,10 +193,12 @@ class HelperClass:
                 # First grab the build time so we know how long to wait to avoid errors
                 actionChains = ActionChains(driver)
                 actionChains.double_click(driver.find_element(By.LINK_TEXT, 'master')).perform()
+                time.sleep(1)
 
                 # Verify we can see "Pipeline master" to make sure we are on right page & grab average build time for later use
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[@id='pipeline-box']")))
                 avgBuildTime = (HelperClass.getBuildTime(self, driver) + 20)
+                time.sleep(1.5)
 
                 # Nav back one page
                 driver.back()
@@ -219,6 +228,7 @@ class HelperClass:
                     time.sleep(1)
                 except:
                     print(">>>>> Proceeding w/ remaining steps as no secondary Git entry text box for:", projName)
+                    time.sleep(1)
 
                 # "Save" & wait depending on which page of Jenkins we go to
                 driver.find_element(By.XPATH, "//button[@type='submit']").click()
@@ -233,42 +243,66 @@ class HelperClass:
                 # "master" branch (We have to double click this element thus action chains)
                 actionChains = ActionChains(driver)
                 actionChains.double_click(driver.find_element(By.LINK_TEXT, 'master')).perform()
+                time.sleep(2.5)
 
                 # Build updated project w/ updated Jenkins configs & verify
-                HelperClass.buildAndVerify(self, driver, avgBuildTime, projName)
-                print(">>>>> (3/3) Completed Jenkins configuration + build for:", projName)
-                counter +=1
+                HelperClass.buildAndVerify(self, driver, avgBuildTime, projName, counter)
+                counter += 1
+                time.sleep(1)
+                
+                # Setup for next project
+                HelperClass.navBackToDashboard(self, driver)
             else:
                 HelperClass.writeInfoToExcel(self, counter, projName, "DNE")
-                print(">>>>> Jenkins project:", projName, "could not be found, excel sheet has been updated.")
+                print("[ERROR] Jenkins project:", projName, "could not be found, excel sheet has been updated.\n")
                 counter += 1
+
+                # Setup for next project
+                HelperClass.navBackToDashboard(self, driver)
         # End
         driver.close()
 
+    def navBackToDashboard(self, driver):
+        driver.find_element(By.LINK_TEXT, "Dashboard").click()
+
+         # Make it wait until we see this
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.LINK_TEXT, "Fav")))
+
     def getBuildTime(self, driver):
         # Grab the average build time, this will be used later
-        runTime = driver.find_element(By.XPATH, "//div[@class='cell-color']")
-        runTimeTxt = runTime.text
+        buildTime = driver.find_element(By.XPATH, "//td[@class='stage-total-2']").text
 
-        # Check if average build time is over a minute
-        if ("min" in runTimeTxt):
-            runTimeTxt = runTimeTxt[46:54]
-            minute = int(runTimeTxt[0:1])
-            seconds = runTimeTxt[len(runTimeTxt) - 4:]
-            secondsInt = int(float(seconds[0:2]))
-            if (minute == 1):
-                runTimeInt = 60 + secondsInt
-            elif (minute == 2):
-                runTimeInt = 120 + secondsInt
+        # Now check if we are dealing w/ a single second, multi-second, or over minute build time
+        buildTimeLen = len(buildTime)
+
+        if (buildTimeLen < 3):
+            # Single second build time
+            return int(float(buildTime[0:1]))
+        elif (buildTimeLen == 3):
+            # Multi-second build time
+            return int(float(buildTime[0:2]))
+        elif (7 <= buildTimeLen <= 8):
+            # Over a minute build time
+            runTimeMin = int(float(buildTime[0:1]))
+            runTimeSec = buildTime[:len(buildTime) - 1]
+            runTimeSec = int(float(runTimeSec[len(runTimeSec) - 2:]))
+        
+            if (runTimeMin == 1):
+                return 60 + runTimeSec
+            elif (runTimeMin == 2):
+                return 120 + runTimeSec
             else:
-                runTimeInt = 180 + secondsInt
+                return 180 + runTimeSec
         else:
-            runTimeInt = int(runTimeTxt[46:48])
-        return runTimeInt
+            # In case project has no build history
+            return 180
 
-    def buildAndVerify(self, driver, avgBuildTime, projName):
-        # Grab the number of current builds
-        builds = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
+    def buildAndVerify(self, driver, avgBuildTime, projName, counter):
+        # Grab the number of current builds (otherwise make an empty list if we have no build history)
+        try:
+            builds = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
+        except NoSuchElementException:
+            builds = []
 
         # Build the Jenkins project now using GitLab & wait the average build time
         driver.find_element(By.XPATH, "//div[@id='tasks']/div[3]").click()
@@ -293,7 +327,10 @@ class HelperClass:
             # Verify we see latest build ID as "Last Sucessful Build"
             if (latestBuildID in lastSuccessfulBuild):
                 print(">>>>> (2/3) Successfully validated build for:", projName)
+                print(">>>>> (3/3) Completed Jenkins configuration for:", projName, "\n")
+                HelperClass.writeInfoToExcel(self, counter, projName, "DONE")
             else:
-                print(">>>>> (2/3) Failed to validate build status for project:", projName, ", please check afterwards")
+                print("[ERROR] Failed to validate build status for project:", projName, ", please check afterwards")
+                HelperClass.writeInfoToExcel(self, counter, projName, "FAIL")
         else:
-            print(">>>>> Failed to check for updated Jenkins build for current project.")
+            print("[ERROR] Failed to check for updated Jenkins build for", projName, ", please check afterwards.")
