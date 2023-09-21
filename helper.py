@@ -11,7 +11,6 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import NoSuchElementException
 
 class HelperClass:
     def createProject(self, driver, counter, gogsLink, projName):
@@ -91,10 +90,9 @@ class HelperClass:
         sheet = wb['Sheet1']
         
         if (reason == "DNE"):
-            print("[ERROR]", projName, "does not exist, updating excel sheet.")
+            print("[ERROR]", projName, "does not exist, updating excel sheet.\n")
             sheet.cell(row=counter, column=INFO_COLUMN).value = "Project not found on Jenkins."
             wb.save(MYXSX)
-            print(">>>>> Successfully updated excel sheet for missing project:", projName, "\n")
         elif (reason == "FAIL"):
             sheet.cell(row=counter, column=SECOND_INFO_COLUMN).value = "Failed to configure GitLab and/or Jenkins, please review."
             wb.save(MYXSX)
@@ -119,24 +117,36 @@ class HelperClass:
         time.sleep(1)
 
     def loginJenkins(self, driver):
-        print(">>>>> Completed importing projects to GitLab, now updating Jenkins configurations...\n")
+        print("***** Completed importing projects to GitLab, now updating Jenkins configurations. *****\n")
         
         tf = True
         while tf:
             try:
+                print("+++++ attempting to login!")
                 # Enter credentials
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_username"))).send_keys(USER)
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_password"))).send_keys(PSWD)
                 time.sleep(0.5)
-
-                # "Sign in"
-                signInBtn = driver.find_element(By.NAME, "Submit")
-                signInBtn.click()
-                time.sleep(5)
-                tf = False
+                print("+++++ hitting sign in button now")
+                
+                try:
+                    # "Sign in"
+                    signInBtn = driver.find_element(By.NAME, "Submit")
+                    signInBtn.click()
+                    tf = False
+                    print("+++++ set tf to False")
+                except:
+                    print("+++++ Inner except case")
+                    tf = True
             except Exception:
+                print("+++++ refreshing now")
                 driver.refresh()
+                print("+++++ refreshed chrome")
+                tf = True
+                print("+++++ reset tf to True")
                 continue
+        print("+++++ out of while loop")
+        time.sleep(5)
 
     def initializeChromeDriver(self, URL):
         driver = Driver(uc=True)
@@ -227,7 +237,7 @@ class HelperClass:
                     element2.send_keys(gitLink)
                     time.sleep(1)
                 except:
-                    print(">>>>> Proceeding w/ remaining steps as no secondary Git entry text box for:", projName)
+                    print("[INFO] Proceeding w/ remaining steps as no secondary Git entry text box for:", projName)
                     time.sleep(1)
 
                 # "Save" & wait depending on which page of Jenkins we go to
@@ -254,13 +264,13 @@ class HelperClass:
                 HelperClass.navBackToDashboard(self, driver)
             else:
                 HelperClass.writeInfoToExcel(self, counter, projName, "DNE")
-                print("[ERROR] Jenkins project:", projName, "could not be found, excel sheet has been updated.\n")
                 counter += 1
 
                 # Setup for next project
                 HelperClass.navBackToDashboard(self, driver)
         # End
         driver.close()
+        print("***** Completed updating all Jenkins projects, goodbye! *****")
 
     def navBackToDashboard(self, driver):
         driver.find_element(By.LINK_TEXT, "Dashboard").click()
@@ -298,39 +308,29 @@ class HelperClass:
             return 180
 
     def buildAndVerify(self, driver, avgBuildTime, projName, counter):
-        # Grab the number of current builds (otherwise make an empty list if we have no build history)
-        try:
-            builds = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
-        except NoSuchElementException:
-            builds = []
-
         # Build the Jenkins project now using GitLab & wait the average build time
         driver.find_element(By.XPATH, "//div[@id='tasks']/div[3]").click()
         time.sleep(avgBuildTime)
 
         # Check the number of builds again verifying a new build was added
-        builds2 = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
+        builds = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
 
-        # Compare both lists verifying new lists is +1 on old list
-        if (len(builds) < len(builds2)):
-            # Refresh the screen so we may see new statistics
-            driver.refresh()
+        # Refresh the screen so we may see new statistics
+        driver.refresh()
 
-            # Re-initialize build elements since page was refreshed: myTime = HelperClass.returnDateAndTime(self)
-            builds2 = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
-            latestBuildTime = builds2[0].text
+        # Re-initialize build elements since page was refreshed: myTime = HelperClass.returnDateAndTime(self)
+        builds = driver.find_elements(By.XPATH, "//td[@class='build-row-cell']")
+        latestBuildTime = builds[0].text
 
-            # Parse each time accordingly
-            latestBuildID = latestBuildTime.partition('\n')[0]
-            lastSuccessfulBuild = driver.find_element(By.XPATH, "//a[@href='lastSuccessfulBuild/']").text
+        # Parse each time accordingly
+        latestBuildID = latestBuildTime.partition('\n')[0]
+        lastSuccessfulBuild = driver.find_element(By.XPATH, "//a[@href='lastSuccessfulBuild/']").text
 
-            # Verify we see latest build ID as "Last Sucessful Build"
-            if (latestBuildID in lastSuccessfulBuild):
-                print(">>>>> (2/3) Successfully validated build for:", projName)
-                print(">>>>> (3/3) Completed Jenkins configuration for:", projName, "\n")
-                HelperClass.writeInfoToExcel(self, counter, projName, "DONE")
-            else:
-                print("[ERROR] Failed to validate build status for project:", projName, ", please check afterwards")
-                HelperClass.writeInfoToExcel(self, counter, projName, "FAIL")
+        # Verify we see latest build ID as "Last Sucessful Build"
+        if (latestBuildID in lastSuccessfulBuild):
+            print(">>>>> (2/3) Successfully validated build for:", projName)
+            print(">>>>> (3/3) Completed Jenkins configuration for:", projName, "\n")
+            HelperClass.writeInfoToExcel(self, counter, projName, "DONE")
         else:
-            print("[ERROR] Failed to check for updated Jenkins build for", projName, ", please check afterwards.")
+            print("[ERROR] Failed to validate build status for project:", projName, ", please check afterwards.\n")
+            HelperClass.writeInfoToExcel(self, counter, projName, "FAIL")

@@ -12,7 +12,7 @@ class main:
     driver = hc.initializeChromeDriver(GITLAB_URL)
     counter = 2 # helps us keep track of what excel row we should be on
 
-    # # Store the read columns into a list
+    # Store the read columns into a list
     projectNamesList = pd.read_excel(MYXSX, header=None, skiprows=1, usecols="A").values.tolist()
     gogsLinksList = pd.read_excel(MYXSX, header=None, skiprows=1, usecols="B").values.tolist()
     
