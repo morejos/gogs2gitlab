@@ -121,31 +121,22 @@ class HelperClass:
         
         tf = True
         while tf:
-            try:
-                print("+++++ attempting to login!")
-                # Enter credentials
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_username"))).send_keys(USER)
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_password"))).send_keys(PSWD)
-                time.sleep(0.5)
-                print("+++++ hitting sign in button now")
+            # Enter credentials
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_username"))).send_keys(USER)
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "j_password"))).send_keys(PSWD)
+            time.sleep(0.5)
                 
-                try:
-                    # "Sign in"
-                    signInBtn = driver.find_element(By.NAME, "Submit")
-                    signInBtn.click()
-                    tf = False
-                    print("+++++ set tf to False")
-                except:
-                    print("+++++ Inner except case")
-                    tf = True
-            except Exception:
-                print("+++++ refreshing now")
-                driver.refresh()
-                print("+++++ refreshed chrome")
+            # "Sign in"
+            signInBtn = driver.find_element(By.NAME, "Submit")
+            signInBtn.click()
+            
+            # Verify we were able to login, otherwise re-try
+            try:
+                WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.LINK_TEXT, 'New Item')))
+                tf = False
+            except:
                 tf = True
-                print("+++++ reset tf to True")
-                continue
-        print("+++++ out of while loop")
+                driver.refresh()
         time.sleep(5)
 
     def initializeChromeDriver(self, URL):
