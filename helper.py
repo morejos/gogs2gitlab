@@ -135,6 +135,7 @@ class HelperClass:
                 WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.LINK_TEXT, 'New Item')))
                 tf = False
             except:
+                print("Failed to login, re-attempting login.\n")
                 tf = True
                 driver.refresh()
         time.sleep(5)

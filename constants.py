@@ -1,6 +1,6 @@
 # Gitlab
-USER = ""
-PSWD = ""
+USER = "qbit_test"
+PSWD = "#Difficult$"
 GITLAB_URL = "https://gitlab.issgovernance.com/qbitautomation"
 
 # Jenkins
@@ -8,7 +8,7 @@ JENKINS_URL = "http://vpna-qat-jen001.ad-dev.issgovernance.com:8080/login?from=%
 
 # Excel file
 #MYXSX = "GOGs list of projects.xlsx"
-MYXSX = "test.xlsx"
+MYXSX = "test.xlsx" # Test file
 
 # Constants
 NO_RESULTS_FOUND = "No results found"
