@@ -1,6 +1,6 @@
 # Gitlab
-USER = "qbit_test"
-PSWD = "#Difficult$"
+USER = ""
+PSWD = ""
 GITLAB_URL = "https://gitlab.issgovernance.com/qbitautomation"
 
 # Jenkins
