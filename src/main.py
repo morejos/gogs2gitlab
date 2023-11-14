@@ -15,7 +15,8 @@ class main:
             dir = sys.argv[1]
             break
         except:
-            print('[ERROR] Please pass in directory name.')
+            print("[ERROR] Please pass in directory name.")
+            print("""[INFO] Example: python main.py 'C:\\Users\\user1\\Documents\\file.xlsx'\n""")
             exit()
 
     # Open the file for reading & store column data
