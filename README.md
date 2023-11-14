@@ -1,5 +1,5 @@
 Installation:
-pip install -U git+https://github.com/morejos/gogs2gitlab.git
+- pip install -U git+https://github.com/morejos/gogs2gitlab.git
 
 Data File:
 - Download data file template, add your projects according to the template.
@@ -7,7 +7,7 @@ Data File:
 - Store data file preferably in your C drive.
 
 Usage:
-g2g 'C:\Users\user1\Documents\file.xlsx'
+- g2g 'C:\Users\user1\Documents\file.xlsx'
 
-Un-instalation:
--- TODO
+Uninstall:
+- TODO
